@@ -100,6 +100,7 @@ def extract_logs(room_name):
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920x1080")
     driver = webdriver.Chrome(options=options)
 
     driver.get(url)
@@ -124,14 +125,31 @@ def extract_logs(room_name):
     start_str = now.replace(hour=0, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
     end_str = now.replace(hour=23, minute=59, second=59).strftime("%Y-%m-%d %H:%M:%S")
 
+    driver.execute_script("arguments[0].scrollIntoView(true);", start_input)
     driver.execute_script("arguments[0].removeAttribute('readonly')", start_input)
+    time.sleep(0.5)
     start_input.clear()
     start_input.send_keys(start_str)
+
+    driver.execute_script("arguments[0].scrollIntoView(true);", end_input)
     driver.execute_script("arguments[0].removeAttribute('readonly')", end_input)
+    time.sleep(0.5)
     end_input.clear()
     end_input.send_keys(end_str)
 
-    driver.find_element(By.CLASS_NAME, "btn-save").click()
+    # Đóng popup lịch nếu cần
+    driver.find_element(By.TAG_NAME, "body").click()
+    time.sleep(0.5)
+
+    btn = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.CLASS_NAME, "btn-save")))
+    driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+    time.sleep(0.5)
+    try:
+        btn.click()
+    except Exception:
+        driver.find_element(By.TAG_NAME, "body").click()
+        time.sleep(0.5)
+        btn.click()
 
     os.makedirs(IMAGE_DIR, exist_ok=True)
     records = []
@@ -175,8 +193,8 @@ def extract_logs(room_name):
                         ).screenshot(img_path)
                         driver.close()
                         driver.switch_to.window(driver.window_handles[0])
-            except:
-                pass
+            except Exception as capture_error:
+                print("⚠️ Ảnh không chụp được:", capture_error)
             records.append({
                 "Employee ID": emp_id,
                 "Name": name,
@@ -224,7 +242,8 @@ def download_json_file(room_name: str = Query(..., description="Tên phòng: dsl
                 try:
                     subfolder_id = ensure_subfolder(service, room_name)
                     file_id = upload_file(service, img_path, file_name, subfolder_id)
-                except:
+                except Exception as ex:
+                    print(f"❌ Upload ảnh lỗi: {ex}")
                     file_id = None
             rec["Image_Link"] = f"https://drive.google.com/uc?id={file_id}" if file_id else None
 
@@ -239,6 +258,9 @@ def download_json_file(room_name: str = Query(..., description="Tên phòng: dsl
 
         return JSONResponse(content=data, media_type='application/json')
     except Exception as e:
+        import traceback
+        print("❌ SERVER ERROR:", str(e))
+        traceback.print_exc()
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
