@@ -1,0 +1,11 @@
+version: "3"
+services:
+  camera_api:
+    build: .
+    container_name: camera_api
+    ports:
+      - "5005:5005"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
